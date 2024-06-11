@@ -9,6 +9,8 @@
 
 @interface ViewController ()
 
+@property (nonatomic, strong) NSThread *thread;
+
 @end
 
 @implementation ViewController
@@ -17,18 +19,24 @@
     [super viewDidLoad];
     // Do any additional setup after loading the view.
     
+    // 1. 线程保活
     UIButton *button = [[UIButton alloc] init];
     [button setTitle:@"线程保活" forState:UIControlStateNormal];
     button.frame = CGRectMake(100, 100, 200, 100);
     [button addTarget:self action:@selector(threadActive:) forControlEvents:UIControlEventTouchUpInside];
     [button setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [self.view addSubview:button];
+    
+    // 2. crash监控
+    
+    // 3. 监测、优化卡顿
 }
 
 - (void)threadActive:(id)sender {
     // 多次点击创建多个NSThread实例
-    NSThread *thread = [[NSThread alloc] initWithTarget:self selector:@selector(threadExcute:) object:nil];
-    [thread start];
+    // thread 和 runloop 健值对
+    self.thread = [[NSThread alloc] initWithTarget:self selector:@selector(threadExcute:) object:nil];
+    [self.thread start];
 }
 
 - (void)threadExcute:(id)sender {
@@ -50,8 +58,11 @@
 //    [self performSelector:@selector(hello:) withObject:@5 afterDelay:0.5]; // 5
 //    [self performSelector:@selector(hello:) withObject:@6]; // 6
     
-//    [self performSelector:@selector(hello:) withObject:@5 afterDelay:0.5]; // 5
-//    [self performSelector:@selector(hello:) withObject:@6]; // 6
+//    [[NSRunLoop currentRunLoop] addPort:[NSMachPort port] forMode:NSRunLoopCommonModes];
+    [NSThread sleepForTimeInterval:3];
+    [self performSelector:@selector(hello:) withObject:@7 afterDelay:2];
+    [self performSelector:@selector(hello:) withObject:@8];
+    [[NSRunLoop currentRunLoop] run];
 
     NSLog(@"thread end %@", [NSThread currentThread]);
 }
