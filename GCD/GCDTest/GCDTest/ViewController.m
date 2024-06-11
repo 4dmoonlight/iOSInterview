@@ -12,7 +12,10 @@
 
 @property (nonatomic, strong) NSLock *lock;
 @property (nonatomic, strong) NSMutableDictionary *dic;
-@property (nonatomic, strong) dispatch_queue_t queue;
+@property (nonatomic, strong) dispatch_queue_t concurrentQueue;
+
+@property (nonatomic, strong) dispatch_queue_t serialQueue;
+@property (nonatomic, strong) dispatch_queue_t globalQueue;
 
 @end
 
@@ -23,7 +26,9 @@
     // Do any additional setup after loading the view.
     self.dic = [[NSMutableDictionary alloc] init];
     self.lock = [[NSLock alloc] init];
-    self.queue = dispatch_queue_create("com.rui.gcd", DISPATCH_QUEUE_CONCURRENT);
+    self.concurrentQueue = dispatch_queue_create("com.rui.concurrentQueue", DISPATCH_QUEUE_CONCURRENT);
+    self.serialQueue = dispatch_queue_create("com.rui.serialQueue", DISPATCH_QUEUE_SERIAL);
+    self.globalQueue = dispatch_get_global_queue(0, 0);
     
     UIButton *button1 = [[UIButton alloc] init];
     [button1 addTarget:self action:@selector(glabal:) forControlEvents:UIControlEventTouchUpInside];
@@ -46,6 +51,19 @@
     [button3 setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [self.view addSubview:button3];
     
+    UIButton *button4 = [[UIButton alloc] init];
+    [button4 addTarget:self action:@selector(barrierOnGlobal:) forControlEvents:UIControlEventTouchUpInside];
+    button4.frame = CGRectMake(100, 250, 200, 50);
+    [button4 setTitle:@"全局队列+栅栏函数" forState:UIControlStateNormal];
+    [button4 setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [self.view addSubview:button4];
+    
+    UIButton *button5 = [[UIButton alloc] init];
+    [button5 addTarget:self action:@selector(barrierOnSerial:) forControlEvents:UIControlEventTouchUpInside];
+    button5.frame = CGRectMake(100, 300, 200, 50);
+    [button5 setTitle:@"串行队列+栅栏函数" forState:UIControlStateNormal];
+    [button5 setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [self.view addSubview:button5];
 }
 
 - (void)glabal:(id)sender {
@@ -111,7 +129,7 @@
             ///1.和读互斥:栅栏函数
             ///2.等所有读操作完成之后
             ///3.写操作不用等待结果:async
-            dispatch_barrier_async(self.queue, ^{
+            dispatch_barrier_async(self.concurrentQueue, ^{
                 GCDPerson *person = [[GCDPerson alloc] init];
                 person.age = i;
                 NSLog(@"%@", @(i));
@@ -128,7 +146,61 @@
             ///1. 读操作要等结果:sync
             ///2.要和写操作互斥:在同一线程
             ///3.多读:concurrent_queue 并发线程
-            dispatch_sync(self.queue, ^{
+            dispatch_sync(self.concurrentQueue, ^{
+                GCDPerson *person = self.dic[@"0"];
+                NSLog(@"%@ %@", person, @(person.age));
+            });
+            i++;
+        }
+    });
+}
+
+- (void)barrierOnGlobal:(id)sender {
+    // 可能不会按顺序执行，不可控，达不到栅栏函数效果
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSInteger i = 0;
+        while (i < 1000) {
+            dispatch_barrier_async(self.globalQueue, ^{
+                GCDPerson *person = [[GCDPerson alloc] init];
+                person.age = i;
+                NSLog(@"%@", @(i));
+                self.dic[@"0"] = person;
+            });
+            i++;
+        }
+    });
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSInteger i = 0;
+        while (i < 1000) {
+            dispatch_sync(self.globalQueue, ^{
+                GCDPerson *person = self.dic[@"0"];
+                NSLog(@"%@ %@", person, @(person.age));
+            });
+            i++;
+        }
+    });
+}
+
+- (void)barrierOnSerial:(id)sender {
+    // 单是这个case，看起来没什么问题，但执行时间较长，因为读写都是串行
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSInteger i = 0;
+        while (i < 1000) {
+            dispatch_barrier_async(self.serialQueue, ^{
+                GCDPerson *person = [[GCDPerson alloc] init];
+                person.age = i;
+                NSLog(@"%@", @(i));
+                self.dic[@"0"] = person;
+            });
+            i++;
+        }
+    });
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSInteger i = 0;
+        while (i < 1000) {
+            dispatch_sync(self.serialQueue, ^{
                 GCDPerson *person = self.dic[@"0"];
                 NSLog(@"%@ %@", person, @(person.age));
             });
