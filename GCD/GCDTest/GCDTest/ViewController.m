@@ -64,6 +64,20 @@
     [button5 setTitle:@"串行队列+栅栏函数" forState:UIControlStateNormal];
     [button5 setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [self.view addSubview:button5];
+    
+    UIButton *button6 = [[UIButton alloc] init];
+    [button6 addTarget:self action:@selector(gcdOrder:) forControlEvents:UIControlEventTouchUpInside];
+    button6.frame = CGRectMake(100, 350, 200, 50);
+    [button6 setTitle:@"GCD执行顺序" forState:UIControlStateNormal];
+    [button6 setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [self.view addSubview:button6];
+    
+    UIButton *button7 = [[UIButton alloc] init];
+    [button7 addTarget:self action:@selector(semaphoreAndGroup:) forControlEvents:UIControlEventTouchUpInside];
+    button7.frame = CGRectMake(100, 400, 200, 50);
+    [button7 setTitle:@"信号量和Group" forState:UIControlStateNormal];
+    [button7 setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [self.view addSubview:button7];
 }
 
 - (void)glabal:(id)sender {
@@ -157,6 +171,7 @@
 
 - (void)barrierOnGlobal:(id)sender {
     // 可能不会按顺序执行，不可控，达不到栅栏函数效果
+    // 多次快速点击会崩溃
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSInteger i = 0;
         while (i < 1000) {
@@ -207,6 +222,45 @@
             i++;
         }
     });
+}
+
+- (void)gcdOrder:(id)sender {
+    // 面试题
+    // 1 dispatch_barrier_async & dispatch_barrier_sync 打印上的区别
+    // 2 死锁情况尝试 sync/async + 串行/并发/主队列/全局队列
+    // 3 什么情况创建新线程 asyn/sync + 串行/并发/主队列/全局队列
+    
+    // Tips:
+    // 1 dispatch_sync 文档说明很重要，除非目标队列是主队列，否则不会在目标队列上执行block任务，所以在dispatch_sync(self.queue)中执行的代码跟什么都没写一样，依然在主线程执行
+    [self logWithThreadAndTaskNumber:1];
+
+    dispatch_sync(self.concurrentQueue, ^{
+        [self logWithThreadAndTaskNumber:2];
+        dispatch_sync(self.concurrentQueue, ^{
+            [self logWithThreadAndTaskNumber:3];
+        });
+        [self logWithThreadAndTaskNumber:4];
+    });
+
+// 分清楚 调用线程 和 执行线程，栅栏函数是保证“执行线程”屏障，但不会阻塞“调用线程”，sync是阻塞“调用线程”的
+//    dispatch_barrier_async(self.concurrentQueue, ^{
+//        NSLog(@"Barrier Task");
+//    });
+//    
+//    dispatch_barrier_sync(self.concurrentQueue, ^{
+//        NSLog(@"Barrier Task");
+//    });
+    
+    
+    [self logWithThreadAndTaskNumber:5];
+}
+
+- (void)semaphoreAndGroup:(id)sender {
+    
+}
+
+- (void)logWithThreadAndTaskNumber:(NSInteger)index {
+    NSLog(@"Task %@, %@", @(index), [NSThread currentThread]);
 }
 
 @end
